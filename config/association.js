@@ -285,16 +285,17 @@ db.supplier.hasOne(db.price_comparison, {
     foreignKey: 'recommendedSupplierId',
     as: 'price_comparison',
 });
-};
-
 // ================= LICENSE ASSOCIATION (SUPERADMIN MODULE) =================
 
-db.user.hasOne(db.license, {
-    foreignKey: 'admin_id',
-    as: 'license',
-});
+ db.user.hasOne(db.license, {
+        foreignKey: 'admin_id',
+        as: 'license',
+    });
 
-db.license.belongsTo(db.user, {
-    foreignKey: 'admin_id',
-    as: 'admin',
-});
+    db.license.belongsTo(db.user, {
+        foreignKey: 'admin_id',
+        as: 'admin',
+    });
+};
+
+
