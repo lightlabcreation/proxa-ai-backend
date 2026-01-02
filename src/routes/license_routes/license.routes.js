@@ -14,11 +14,10 @@ const {
 // License routes
 router.post("/license/activate", authenticate, activateLicense);
 router.post("/license/validate", authenticate, validateLicense);
-router.post("/license/verify", verifyLicense); // No auth required - used by software
+router.post("/license/verify", verifyLicense); // No auth required
 router.get("/license/generate", authenticate, generateLicense);
 router.get("/license/all", authenticate, getAllLicenses);
 router.put("/license/toggle/:id", authenticate, toggleLicenseStatus);
 router.put("/license/expiry/:id", authenticate, updateExpiryDate);
 
 module.exports = router;
-

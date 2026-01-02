@@ -67,9 +67,7 @@ async function createNotification(type, message, targetRole, targetUserId = null
  * ------------------------
  */
 
-/**
- * POST /api/license/activate
- */
+// POST /api/license/activate
 exports.activateLicense = async (req, res) => {
   try {
     const { licenseKey } = req.body;
@@ -94,11 +92,7 @@ exports.activateLicense = async (req, res) => {
 
     // Check if user already has active license
     const existingLicense = await License.findOne({
-      where: {
-        admin_id: user.id,
-        is_active: true,
-        status: "active",
-      },
+      where: { admin_id: user.id, is_active: true, status: "active" },
     });
 
     if (existingLicense) return res.status(400).json({ status: false, message: "You already have an active license" });
@@ -117,9 +111,7 @@ exports.activateLicense = async (req, res) => {
   }
 };
 
-/**
- * GET /api/license/validate
- */
+// GET /api/license/validate
 exports.validateLicense = async (req, res) => {
   try {
     const email = getEmailFromToken(req);
@@ -130,19 +122,11 @@ exports.validateLicense = async (req, res) => {
 
     if (user?.userType === "admin") {
       license = await License.findOne({
-        where: {
-          admin_id: user.id,
-          is_active: true,
-          status: "active",
-        },
+        where: { admin_id: user.id, is_active: true, status: "active" },
       });
     } else {
       license = await License.findOne({
-        where: {
-          assigned_email: email,
-          is_active: true,
-          status: "active",
-        },
+        where: { assigned_email: email, is_active: true, status: "active" },
       });
     }
 
@@ -154,19 +138,32 @@ exports.validateLicense = async (req, res) => {
   }
 };
 
-/**
- * POST /api/license/generate
- */
+// POST /api/license/verify (no auth required)
+exports.verifyLicense = async (req, res) => {
+  try {
+    const { licenseKey } = req.body;
+    if (!licenseKey) return res.status(400).json({ status: false, message: "License key is required" });
+
+    const key = licenseKey.trim().toUpperCase();
+    const license = await License.findOne({ where: { license_key: key, is_active: true, status: "active" } });
+
+    if (!license) return res.status(404).json({ status: false, message: "License not valid" });
+
+    return res.status(200).json({ status: true, message: "License is valid" });
+  } catch (error) {
+    console.error("Verify license error:", error.message);
+    return res.status(500).json({ status: false, message: "Error verifying license" });
+  }
+};
+
+// GET /api/license/generate
 exports.generateLicense = async (req, res) => {
   try {
     if (!isSuperAdmin(req)) return res.status(403).json({ status: false, message: "SuperAdmin access required" });
 
     const { expiryDate } = req.query;
 
-    // Generate unique license key
-    let licenseKey;
-    let attempts = 0;
-    let isUnique = false;
+    let licenseKey, attempts = 0, isUnique = false;
     while (!isUnique && attempts < 10) {
       licenseKey = generateLicenseKey();
       const existing = await License.findOne({ where: { license_key: licenseKey } });
@@ -197,9 +194,7 @@ exports.generateLicense = async (req, res) => {
   }
 };
 
-/**
- * GET /api/license/all
- */
+// GET /api/license/all
 exports.getAllLicenses = async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ status: false, message: "Authentication required" });
@@ -208,10 +203,7 @@ exports.getAllLicenses = async (req, res) => {
     if (isSuperAdmin(req)) {
       licenses = await License.findAll({ order: [["createdAt", "DESC"]] });
     } else {
-      licenses = await License.findAll({
-        where: { admin_id: req.user.id },
-        order: [["createdAt", "DESC"]],
-      });
+      licenses = await License.findAll({ where: { admin_id: req.user.id }, order: [["createdAt", "DESC"]] });
     }
 
     return res.status(200).json({ status: true, data: licenses, message: "Licenses retrieved successfully" });
@@ -221,9 +213,7 @@ exports.getAllLicenses = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/license/toggle/:id
- */
+// PUT /api/license/toggle/:id
 exports.toggleLicenseStatus = async (req, res) => {
   try {
     if (!isSuperAdmin(req)) return res.status(403).json({ status: false, message: "SuperAdmin access required" });
@@ -242,9 +232,7 @@ exports.toggleLicenseStatus = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/license/expiry/:id
- */
+// PUT /api/license/expiry/:id
 exports.updateExpiryDate = async (req, res) => {
   try {
     if (!isSuperAdmin(req)) return res.status(403).json({ status: false, message: "SuperAdmin access required" });
@@ -269,75 +257,5 @@ exports.updateExpiryDate = async (req, res) => {
   } catch (error) {
     console.error("Update expiry date error:", error.message);
     return res.status(500).json({ status: false, message: "Error updating expiry date" });
-  }
-};
-
-/**
- * ------------------------
- * ADMIN CONTROLLERS (SuperAdmin Only)
- * ------------------------
- */
-
-/**
- * POST /api/superadmin/create-admin
- */
-exports.createAdmin = async (req, res) => {
-  try {
-    if (!isSuperAdmin(req)) return res.status(403).json({ status: false, message: "SuperAdmin access required" });
-
-    const { email, password, startDate, expiryDate, licensePeriodDays } = req.body;
-    if (!email || !password) return res.status(400).json({ status: false, message: "Email and password required" });
-
-    const existingUser = await User.findOne({ where: { email_id: email.trim() } });
-    if (existingUser) return res.status(400).json({ status: false, message: "User already exists" });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const start = startDate ? new Date(startDate) : new Date();
-    let expiry = expiryDate ? new Date(expiryDate + "T23:59:59") : null;
-    if (!expiry && licensePeriodDays) {
-      expiry = new Date(start);
-      expiry.setDate(expiry.getDate() + parseInt(licensePeriodDays));
-      expiry.setHours(23, 59, 59, 0);
-    }
-
-    const newUser = await User.create({
-      email_id: email.trim(),
-      password: hashedPassword,
-      userType: "admin",
-      is_active: true,
-    });
-
-    // Generate license
-    let licenseKey, isUnique = false, attempts = 0;
-    while (!isUnique && attempts < 10) {
-      licenseKey = generateLicenseKey();
-      const existingLicense = await License.findOne({ where: { license_key: licenseKey } });
-      if (!existingLicense) isUnique = true;
-      attempts++;
-    }
-
-    if (!isUnique) return res.status(500).json({ status: false, message: "Failed to generate license key" });
-
-    const newLicense = await License.create({
-      admin_id: newUser.id,
-      license_key: licenseKey,
-      assigned_email: email.trim(),
-      status: "active",
-      is_active: true,
-      expiry_date: expiry,
-    });
-
-    return res.status(200).json({
-      status: true,
-      message: "Admin created successfully",
-      data: {
-        admin: { id: newUser.id, email: newUser.email_id, userType: newUser.userType },
-        license: { license_key: licenseKey, expiry_date: expiry, start_date: start },
-      },
-    });
-  } catch (error) {
-    console.error("Create admin error:", error.message);
-    return res.status(500).json({ status: false, message: "Error creating admin" });
   }
 };
