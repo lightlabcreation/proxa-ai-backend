@@ -17,7 +17,9 @@ const allowedOrigins = [
     'http://localhost:5173',           // Vite dev server (default)
     'http://localhost:3000',           // Alternative local port
     'http://localhost:5174',           // Alternative Vite port
-    'https://procxa-ai-backend-production.up.railway.app', // Railway backend (for API calls from same domain)
+    'https://procxa-ai-backend-production.up.railway.app',
+    'https://procxa-ai-ktiam.netlify.app', // Production frontend URL
+    // Railway backend (for API calls from same domain)
     process.env.FRONTEND_URL,          // Production frontend URL from env
     process.env.CLIENT_URL,            // Alternative env variable name
 ].filter(Boolean); // Remove undefined values
