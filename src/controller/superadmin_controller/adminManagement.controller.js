@@ -784,20 +784,13 @@ const createNotification = async ({ type, message, targetRole, targetUserId = nu
 ================================ */
 exports.createAdmin = async (req, res) => {
   try {
-    if (req.user.userType !== 'superadmin') {
-      return res.status(403).json({ status: false, message: 'SuperAdmin only' });
-    }
+    if (req.user.userType !== 'superadmin') return res.status(403).json({ status: false, message: 'SuperAdmin only' });
 
     const { email, password, expiryDate, licensePeriodDays } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ status: false, message: 'Email & password required' });
-    }
+    if (!email || !password) return res.status(400).json({ status: false, message: 'Email & password required' });
 
     const exists = await User.findOne({ where: { email_id: email } });
-    if (exists) {
-      return res.status(400).json({ status: false, message: 'Admin already exists' });
-    }
+    if (exists) return res.status(400).json({ status: false, message: 'Admin already exists' });
 
     const hashed = await bcrypt.hash(password, 10);
 
@@ -833,77 +826,123 @@ exports.createAdmin = async (req, res) => {
       licenseId: license.id,
     });
 
-    return res.status(201).json({
-      status: true,
-      message: 'Admin created',
-      data: { admin, license },
-    });
-
+    return res.status(201).json({ status: true, message: 'Admin created', data: { admin, license } });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ status: false, message: error.message });
+    return res.status(500).json({ status: false, message: error.message });
   }
 };
 
-
+/* GET ALL ADMINS */
 exports.getAllAdmins = async (req, res) => {
   try {
-    if (req.user.userType !== 'superadmin') {
-      return res.status(403).json({ status: false, message: 'SuperAdmin only' });
-    }
+    if (req.user.userType !== 'superadmin') return res.status(403).json({ status: false, message: 'SuperAdmin only' });
 
     const admins = await User.findAll({
       where: { userType: 'admin' },
-      include: [
-        {
-          model: License,
-          as: 'license',
-        },
-      ],
+      include: [{ model: License, as: 'license' }],
       order: [['id', 'DESC']],
     });
 
-    return res.status(200).json({
-      status: true,
-      data: admins,
-    });
-
+    return res.status(200).json({ status: true, data: admins });
   } catch (err) {
-    res.status(500).json({ status: false, message: err.message });
+    return res.status(500).json({ status: false, message: err.message });
   }
 };
 
-
+/* RENEW LICENSE */
 exports.renewLicense = async (req, res) => {
   try {
-    if (req.user.userType !== 'superadmin') {
-      return res.status(403).json({ status: false, message: 'SuperAdmin only' });
-    }
+    if (req.user.userType !== 'superadmin') return res.status(403).json({ status: false, message: 'SuperAdmin only' });
 
     const { adminId } = req.params;
     const { extendDays } = req.body;
 
     const license = await License.findOne({ where: { admin_id: adminId } });
-    if (!license) {
-      return res.status(404).json({ status: false, message: 'License not found' });
-    }
+    if (!license) return res.status(404).json({ status: false, message: 'License not found' });
 
     const newExpiry = new Date(license.expiry_date || new Date());
     newExpiry.setDate(newExpiry.getDate() + Number(extendDays));
 
-    await license.update({
-      expiry_date: newExpiry,
-      is_active: true,
-      status: 'active',
-    });
+    await license.update({ expiry_date: newExpiry, is_active: true, status: 'active' });
 
-    return res.status(200).json({
-      status: true,
-      message: 'License renewed',
-      expiry_date: newExpiry,
-    });
-
+    return res.status(200).json({ status: true, message: 'License renewed', expiry_date: newExpiry });
   } catch (err) {
-    res.status(500).json({ status: false, message: err.message });
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+/* TOGGLE ADMIN ACTIVE/INACTIVE */
+exports.toggleAdmin = async (req, res) => {
+  try {
+    if (req.user.userType !== 'superadmin') return res.status(403).json({ status: false, message: 'SuperAdmin only' });
+
+    const { adminId } = req.params;
+    const admin = await User.findByPk(adminId);
+    if (!admin) return res.status(404).json({ status: false, message: 'Admin not found' });
+
+    admin.is_active = !admin.is_active;
+    await admin.save();
+
+    return res.status(200).json({ status: true, message: `Admin ${admin.is_active ? 'activated' : 'deactivated'}` });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+/* UPDATE LICENSE EXPIRY */
+exports.updateExpiry = async (req, res) => {
+  try {
+    if (req.user.userType !== 'superadmin') return res.status(403).json({ status: false, message: 'SuperAdmin only' });
+
+    const { adminId } = req.params;
+    const { expiryDate } = req.body;
+
+    const license = await License.findOne({ where: { admin_id: adminId } });
+    if (!license) return res.status(404).json({ status: false, message: 'License not found' });
+
+    let newExpiry = null;
+    if (expiryDate) {
+      newExpiry = new Date(expiryDate);
+      newExpiry.setHours(23, 59, 59);
+    }
+
+    license.expiry_date = newExpiry;
+    await license.save();
+
+    return res.status(200).json({ status: true, message: 'Expiry updated', expiry_date: newExpiry });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+/* GET LICENSES NEARING EXPIRY */
+exports.getExpiringLicenses = async (req, res) => {
+  try {
+    if (req.user.userType !== 'superadmin') return res.status(403).json({ status: false, message: 'SuperAdmin only' });
+
+    const today = new Date();
+    const next30 = new Date();
+    next30.setDate(today.getDate() + 30);
+
+    const licenses = await License.findAll({
+      where: { expiry_date: { $between: [today, next30] } }, // Sequelize Op may need to be updated
+      include: [{ model: User, as: 'admin' }],
+      order: [['expiry_date', 'ASC']],
+    });
+
+    return res.status(200).json({ status: true, data: licenses });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
+  }
+};
+
+/* GET MY ADMIN DATA */
+exports.getMyAdminData = async (req, res) => {
+  try {
+    const admin = await User.findByPk(req.user.id, { include: [{ model: License, as: 'license' }] });
+    return res.status(200).json({ status: true, data: admin });
+  } catch (err) {
+    return res.status(500).json({ status: false, message: err.message });
   }
 };
