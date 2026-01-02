@@ -134,7 +134,7 @@ app.use((err, req, res, next) => {
 // SERVER STARTUP
 // ============================================
 
-const PORT = process.env.PORT || 7174;
+const PORT = process.env.PORT;
 
 app.get("/",(req,res)=>{
     res.send(`Hello procxa web services, Server is running on port : ${PORT}`)
