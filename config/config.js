@@ -86,6 +86,11 @@ db.costSaving = require("../src/model/costSaving_model/costSaving.model")(sequel
 db.license = require("../src/model/license_model/license.model")(sequelize, DataTypes)
 db.notification = require("../src/model/notification_model/notification.model")(sequelize, DataTypes)
 require('./association')(db);
-db.sequelize.sync({ alter: false });
+// db.sequelize.sync({ alter: false });
+
+if (NODE_ENV !== 'production') {
+  db.sequelize.sync({ alter: false });
+}
+
 
 module.exports = db;
