@@ -171,8 +171,9 @@
 
 
 
-const { User, Notification } = require("../../../config/config");
-const jwt = require('jsonwebtoken');
+const db = require("../../../config/config");
+const Notification = db.notification;
+const jwt = require("jsonwebtoken");
 const accessSecretKey = process.env.ACCESS_SECRET_KEY;
 
 /**
@@ -180,17 +181,17 @@ const accessSecretKey = process.env.ACCESS_SECRET_KEY;
  */
 function getUserFromToken(req) {
   try {
-    const authHeader = req.headers['authorization'];
+    const authHeader = req.headers["authorization"];
     if (!authHeader) return null;
-    
-    const token = authHeader.split(' ')[1];
+
+    const token = authHeader.split(" ")[1];
     if (!token) return null;
-    
+
     const decoded = jwt.verify(token, accessSecretKey);
     return {
       id: decoded.id,
       email: decoded.email,
-      type: decoded.type
+      type: decoded.type,
     };
   } catch (error) {
     return null;
@@ -199,7 +200,6 @@ function getUserFromToken(req) {
 
 /**
  * GET /api/notifications
- * Get notifications for current user
  */
 exports.getNotifications = async (req, res) => {
   try {
@@ -207,51 +207,49 @@ exports.getNotifications = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         status: false,
-        message: 'Authentication required'
+        message: "Authentication required",
       });
     }
 
     let notifications;
-
-    if (user.type === 'superadmin') {
+    if (user.type === "superadmin") {
       notifications = await Notification.findAll({
-        where: { target_role: 'superadmin' },
-        order: [['created_at', 'DESC']],
-        limit: 50
+        where: {
+          target_role: "superadmin",
+        },
+        order: [["createdAt", "DESC"]],
+        limit: 50,
       });
     } else {
       notifications = await Notification.findAll({
         where: {
-          target_role: 'admin',
-          // target_user_id = user.id OR target_user_id IS NULL
-          [Sequelize.Op.or]: [
+          target_role: "admin",
+          [db.Sequelize.Op.or]: [
             { target_user_id: user.id },
-            { target_user_id: null }
-          ]
+            { target_user_id: null },
+          ],
         },
-        order: [['created_at', 'DESC']],
-        limit: 50
+        order: [["createdAt", "DESC"]],
+        limit: 50,
       });
     }
 
     return res.status(200).json({
       status: true,
       data: notifications,
-      message: 'Notifications retrieved successfully'
+      message: "Notifications retrieved successfully",
     });
-
   } catch (error) {
-    console.error('Get notifications error:', error.message);
+    console.error("Get notifications error:", error.message);
     return res.status(500).json({
       status: false,
-      message: 'An error occurred while retrieving notifications'
+      message: "An error occurred while retrieving notifications",
     });
   }
 };
 
 /**
  * PUT /api/notifications/:id/read
- * Mark notification as read
  */
 exports.markAsRead = async (req, res) => {
   try {
@@ -259,34 +257,37 @@ exports.markAsRead = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         status: false,
-        message: 'Authentication required'
+        message: "Authentication required",
       });
     }
 
     const { id } = req.params;
 
-    await Notification.update(
-      { is_read: true },
-      { where: { id } }
-    );
+    const notification = await Notification.findByPk(id);
+    if (!notification) {
+      return res.status(404).json({
+        status: false,
+        message: "Notification not found",
+      });
+    }
+
+    await notification.update({ is_read: true });
 
     return res.status(200).json({
       status: true,
-      message: 'Notification marked as read'
+      message: "Notification marked as read",
     });
-
   } catch (error) {
-    console.error('Mark as read error:', error.message);
+    console.error("Mark as read error:", error.message);
     return res.status(500).json({
       status: false,
-      message: 'An error occurred while updating notification'
+      message: "An error occurred while updating notification",
     });
   }
 };
 
 /**
  * GET /api/notifications/unread-count
- * Get unread notification count
  */
 exports.getUnreadCount = async (req, res) => {
   try {
@@ -294,40 +295,41 @@ exports.getUnreadCount = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         status: false,
-        message: 'Authentication required'
+        message: "Authentication required",
       });
     }
 
-    let count;
-
-    if (user.type === 'superadmin') {
+    let count = 0;
+    if (user.type === "superadmin") {
       count = await Notification.count({
-        where: { target_role: 'superadmin', is_read: false }
+        where: {
+          target_role: "superadmin",
+          is_read: false,
+        },
       });
     } else {
       count = await Notification.count({
         where: {
-          target_role: 'admin',
+          target_role: "admin",
           is_read: false,
-          [Sequelize.Op.or]: [
+          [db.Sequelize.Op.or]: [
             { target_user_id: user.id },
-            { target_user_id: null }
-          ]
-        }
+            { target_user_id: null },
+          ],
+        },
       });
     }
 
     return res.status(200).json({
       status: true,
       count,
-      message: 'Unread count retrieved successfully'
+      message: "Unread count retrieved successfully",
     });
-
   } catch (error) {
-    console.error('Get unread count error:', error.message);
+    console.error("Get unread count error:", error.message);
     return res.status(500).json({
       status: false,
-      message: 'An error occurred while retrieving unread count'
+      message: "An error occurred while retrieving unread count",
     });
   }
 };
