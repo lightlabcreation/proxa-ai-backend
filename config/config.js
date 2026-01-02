@@ -12,7 +12,8 @@ const requiresSSL = DB_SSL === 'true' || (DB_SSL !== 'false' && isProduction);
 
 // Build Sequelize configuration
 const sequelizeConfig = {
-    host: DB_HOST,
+  host: DB_HOST,
+    port: process.env.DB_PORT,   // 🔥 THIS WAS MISSING
     dialect: 'mysql',
     logging: false,
     pool: {
